@@ -143,3 +143,35 @@ def reserve_room(hotel_name, room_type, guest_name, checkin, checkout):
         )
 
     return f"Reservation confirmed at {hotel_name}. Total: ₹{total_price:.2f}. Confirmation: {confirmation_code}"
+
+
+def cancel_reservation(confirmation_code, guest_name):
+    print(f"DATABASE TOOL CALLED: Cancelling reservation {confirmation_code}", flush=True)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        res = conn.execute(
+            "SELECT * FROM reservations WHERE confirmation_code = ? AND guest_name = ?",
+            (confirmation_code, guest_name),
+        ).fetchone()
+
+        if not res:
+            return "Reservation not found or guest name mismatch."
+
+        if res["status"] == "cancelled":
+            return "Reservation is already cancelled."
+
+        # Set status to cancelled
+        conn.execute(
+            "UPDATE reservations SET status = 'cancelled' WHERE id = ?", (res["id"],)
+        )
+
+        # Increment available_rooms
+        conn.execute(
+            """
+            UPDATE rooms SET available_rooms = available_rooms + 1 
+            WHERE hotel_id = ? AND room_type = ?
+            """,
+            (res["hotel_id"], res["room_type"]),
+        )
+
+    return f"Reservation {confirmation_code} has been successfully cancelled."
